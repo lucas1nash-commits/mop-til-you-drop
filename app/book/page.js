@@ -11,6 +11,7 @@ export default function BookPage() {
   const [hours, setHours] = useState(2);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
 
   const price = hours * RATE_PER_HOUR;
 
@@ -32,7 +33,12 @@ export default function BookPage() {
         throw new Error(data.error || 'Something went wrong. Please try again.');
       }
 
-      window.location.href = data.checkoutUrl;
+      // Open checkout in a new tab so it works both standalone and when
+      // the booking form is embedded inside Shopify's admin iframe (where
+      // navigating the iframe itself to an external checkout URL is blocked).
+      window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
+      setCheckoutUrl(data.checkoutUrl);
+      setLoading(false);
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -103,6 +109,16 @@ export default function BookPage() {
           </div>
 
           {error && <p style={styles.error}>{error}</p>}
+
+          {checkoutUrl && (
+            <p style={styles.checkoutFallback}>
+              Booking created!{' '}
+              <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" style={styles.checkoutLink}>
+                Click here to proceed to checkout
+              </a>{' '}
+              if it did not open automatically.
+            </p>
+          )}
 
           <button
             style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
@@ -197,5 +213,17 @@ const styles = {
     padding: '10px 14px',
     fontSize: '0.9rem',
     margin: 0,
+  },
+  checkoutFallback: {
+    background: '#f0fdf4',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    fontSize: '0.9rem',
+    color: '#166534',
+    margin: 0,
+  },
+  checkoutLink: {
+    color: '#166534',
+    fontWeight: 600,
   },
 };
