@@ -82,17 +82,66 @@ export async function POST(request) {
     storePendingBooking(refId, { name, email, postcode, hours, price });
     console.log('[/api/book] Stored pending booking, refId:', refId);
 
-    const baseUrl = process.env.SHOPIFY_CHECKOUT_URL || 'https://m95g0p-gz.myshopify.com/cart';
-    const checkoutUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}note=${refId}`;
+    // Create a Shopify draft order with a custom line item — no product required.
+    const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+    const adminToken = process.env.SHOPIFY_ADMIN_API_TOKEN;
+
+    if (!shopDomain || !adminToken) {
+      throw new Error('SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_API_TOKEN must be set');
+    }
+
+    const draftOrderPayload = {
+      draft_order: {
+        line_items: [
+          {
+            title: `Cleaning Service – ${hours} hr${hours !== 1 ? 's' : ''}`,
+            price: price.toFixed(2),
+            quantity: 1,
+            requires_shipping: false,
+            taxable: false,
+          },
+        ],
+        note: refId,
+        note_attributes: [
+          { name: 'booking_ref', value: refId },
+          { name: 'postcode', value: postcode },
+        ],
+        email,
+        use_customer_default_address: false,
+      },
+    };
+
+    const shopifyRes = await fetch(
+      `https://${shopDomain}/admin/api/2024-01/draft_orders.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': adminToken,
+        },
+        body: JSON.stringify(draftOrderPayload),
+      }
+    );
+
+    if (!shopifyRes.ok) {
+      const errText = await shopifyRes.text();
+      console.error('[/api/book] Shopify draft order creation failed:', shopifyRes.status, errText);
+      throw new Error('Failed to create Shopify draft order');
+    }
+
+    const shopifyData = await shopifyRes.json();
+    const checkoutUrl = shopifyData.draft_order.invoice_url;
+
+    console.log('[/api/book] Draft order created, invoice_url:', checkoutUrl);
 
     return NextResponse.json(
       { success: true, refId, checkoutUrl },
       { status: 200, headers: corsHeaders }
     );
   } catch (err) {
-    console.error('[/api/book] Error storing pending booking:', err);
+    console.error('[/api/book] Error:', err);
     return NextResponse.json(
-      { success: false, error: 'Failed to store booking. Please try again.' },
+      { success: false, error: 'Failed to create booking. Please try again.' },
       { status: 500, headers: corsHeaders }
     );
   }
