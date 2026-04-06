@@ -1,9 +1,12 @@
 import pool from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// CORS headers — allow Shopify (or any) frontend to call this API
+// CORS headers — restrict to the configured origin, or allow all in development.
+// Set ALLOWED_ORIGIN in your Vercel environment variables to your Shopify store domain.
+const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowedOrigin,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
@@ -51,6 +54,24 @@ export async function POST(request) {
     console.warn('[/api/book] hours and price must be numbers');
     return NextResponse.json(
       { success: false, error: 'hours and price must be numbers' },
+      { status: 400, headers: corsHeaders }
+    );
+  }
+
+  if (hours <= 0 || price <= 0) {
+    console.warn('[/api/book] hours and price must be greater than zero');
+    return NextResponse.json(
+      { success: false, error: 'hours and price must be greater than zero' },
+      { status: 400, headers: corsHeaders }
+    );
+  }
+
+  // Basic email format check
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    console.warn('[/api/book] Invalid email format:', email);
+    return NextResponse.json(
+      { success: false, error: 'Invalid email format' },
       { status: 400, headers: corsHeaders }
     );
   }
