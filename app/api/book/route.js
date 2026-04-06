@@ -1,5 +1,6 @@
-import pool from '@/lib/db';
+import { storePendingBooking } from '@/lib/bookingStore';
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 
 // CORS headers — restrict to the configured origin, or allow all in development.
 // Set ALLOWED_ORIGIN in your Vercel environment variables to your Shopify store domain.
@@ -77,26 +78,70 @@ export async function POST(request) {
   }
 
   try {
-    console.log('[/api/book] Inserting booking into database...');
+    const refId = randomUUID();
+    storePendingBooking(refId, { name, email, postcode, hours, price });
+    console.log('[/api/book] Stored pending booking, refId:', refId);
 
-    const result = await pool.query(
-      `INSERT INTO bookings (name, email, postcode, hours, price, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
-       RETURNING id, name, email, postcode, hours, price, status, created_at`,
-      [name, email, postcode, hours, price]
+    // Create a Shopify draft order with a custom line item — no product required.
+    const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+    const adminToken = process.env.SHOPIFY_ADMIN_API_TOKEN;
+
+    if (!shopDomain || !adminToken) {
+      throw new Error('SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_API_TOKEN must be set');
+    }
+
+    const draftOrderPayload = {
+      draft_order: {
+        line_items: [
+          {
+            title: `Cleaning Service – ${hours} hr${hours !== 1 ? 's' : ''}`,
+            price: price.toFixed(2),
+            quantity: 1,
+            requires_shipping: false,
+            taxable: false,
+          },
+        ],
+        note: refId,
+        note_attributes: [
+          { name: 'booking_ref', value: refId },
+          { name: 'postcode', value: postcode },
+        ],
+        email,
+        use_customer_default_address: false,
+      },
+    };
+
+    const shopifyRes = await fetch(
+      `https://${shopDomain}/admin/api/2024-01/draft_orders.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': adminToken,
+        },
+        body: JSON.stringify(draftOrderPayload),
+      }
     );
 
-    const booking = result.rows[0];
-    console.log('[/api/book] Booking created successfully, id:', booking.id);
+    if (!shopifyRes.ok) {
+      const errText = await shopifyRes.text();
+      console.error('[/api/book] Shopify draft order creation failed:', shopifyRes.status, errText);
+      throw new Error('Failed to create Shopify draft order');
+    }
+
+    const shopifyData = await shopifyRes.json();
+    const checkoutUrl = shopifyData.draft_order.invoice_url;
+
+    console.log('[/api/book] Draft order created, invoice_url:', checkoutUrl);
 
     return NextResponse.json(
-      { success: true, booking },
-      { status: 201, headers: corsHeaders }
+      { success: true, refId, checkoutUrl },
+      { status: 200, headers: corsHeaders }
     );
   } catch (err) {
-    console.error('[/api/book] Database error:', err);
+    console.error('[/api/book] Error:', err);
     return NextResponse.json(
-      { success: false, error: 'Failed to save booking. Please try again.' },
+      { success: false, error: 'Failed to create booking. Please try again.' },
       { status: 500, headers: corsHeaders }
     );
   }
