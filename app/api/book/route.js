@@ -83,12 +83,12 @@ export async function POST(request) {
     console.log('[/api/book] Stored pending booking, refId:', refId);
 
     // Create a Shopify draft order with a custom line item — no product required.
-    // Uses the Partner Dashboard app secret (shpss_...) as the Admin API access token.
+    // Uses the Admin API access token (shpat_...) set via SHOPIFY_ADMIN_ACCESS_TOKEN.
     const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-    const adminToken = process.env.SHOPIFY_ADMIN_API_TOKEN;
+    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 
     if (!shopDomain || !adminToken) {
-      const missing = [!shopDomain && 'SHOPIFY_SHOP_DOMAIN', !adminToken && 'SHOPIFY_ADMIN_API_TOKEN']
+      const missing = [!shopDomain && 'SHOPIFY_SHOP_DOMAIN', !adminToken && 'SHOPIFY_ADMIN_ACCESS_TOKEN']
         .filter(Boolean)
         .join(', ');
       console.error('[/api/book] Missing environment variables:', missing);
@@ -105,8 +105,8 @@ export async function POST(request) {
             title: `Cleaning Service – ${hours} hr${hours !== 1 ? 's' : ''}`,
             price: price.toFixed(2),
             quantity: 1,
-            requires_shipping: false,
             taxable: false,
+            custom: true,
           },
         ],
         note: refId,
