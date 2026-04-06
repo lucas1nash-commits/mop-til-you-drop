@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 const RATE_PER_HOUR = 18;
-const SHOPIFY_CHECKOUT_URL = 'https://YOUR-SHOPIFY-CHECKOUT';
+const SHOPIFY_CHECKOUT_URL = process.env.NEXT_PUBLIC_SHOPIFY_CHECKOUT_URL || 'https://YOUR-SHOPIFY-CHECKOUT';
 
 export default function BookPage() {
   const [name, setName] = useState('');
@@ -93,7 +93,7 @@ export default function BookPage() {
               type="number"
               value={hours}
               min={2}
-              onChange={(e) => setHours(e.target.value)}
+              onChange={(e) => setHours(Number(e.target.value))}
               required
               disabled={loading}
             />
