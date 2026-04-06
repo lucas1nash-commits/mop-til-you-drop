@@ -87,7 +87,14 @@ export async function POST(request) {
     const adminToken = process.env.SHOPIFY_ADMIN_API_TOKEN;
 
     if (!shopDomain || !adminToken) {
-      throw new Error('SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_API_TOKEN must be set');
+      const missing = [!shopDomain && 'SHOPIFY_SHOP_DOMAIN', !adminToken && 'SHOPIFY_ADMIN_API_TOKEN']
+        .filter(Boolean)
+        .join(', ');
+      console.error('[/api/book] Missing environment variables:', missing);
+      return NextResponse.json(
+        { success: false, error: `Server configuration error: missing ${missing}. Please contact support.` },
+        { status: 500, headers: corsHeaders }
+      );
     }
 
     const draftOrderPayload = {
@@ -126,7 +133,10 @@ export async function POST(request) {
     if (!shopifyRes.ok) {
       const errText = await shopifyRes.text();
       console.error('[/api/book] Shopify draft order creation failed:', shopifyRes.status, errText);
-      throw new Error('Failed to create Shopify draft order');
+      return NextResponse.json(
+        { success: false, error: `Shopify error (${shopifyRes.status}): ${errText}` },
+        { status: 502, headers: corsHeaders }
+      );
     }
 
     const shopifyData = await shopifyRes.json();
@@ -141,7 +151,7 @@ export async function POST(request) {
   } catch (err) {
     console.error('[/api/book] Error:', err);
     return NextResponse.json(
-      { success: false, error: 'Failed to create booking. Please try again.' },
+      { success: false, error: err.message || 'Failed to create booking. Please try again.' },
       { status: 500, headers: corsHeaders }
     );
   }
