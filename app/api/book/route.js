@@ -1,5 +1,6 @@
-import pool from '@/lib/db';
+import { storePendingBooking } from '@/lib/bookingStore';
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 
 // CORS headers — restrict to the configured origin, or allow all in development.
 // Set ALLOWED_ORIGIN in your Vercel environment variables to your Shopify store domain.
@@ -77,26 +78,21 @@ export async function POST(request) {
   }
 
   try {
-    console.log('[/api/book] Inserting booking into database...');
+    const refId = randomUUID();
+    storePendingBooking(refId, { name, email, postcode, hours, price });
+    console.log('[/api/book] Stored pending booking, refId:', refId);
 
-    const result = await pool.query(
-      `INSERT INTO bookings (name, email, postcode, hours, price, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
-       RETURNING id, name, email, postcode, hours, price, status, created_at`,
-      [name, email, postcode, hours, price]
-    );
-
-    const booking = result.rows[0];
-    console.log('[/api/book] Booking created successfully, id:', booking.id);
+    const baseUrl = process.env.SHOPIFY_CHECKOUT_URL || 'https://YOUR-SHOPIFY-CHECKOUT';
+    const checkoutUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}note=${refId}`;
 
     return NextResponse.json(
-      { success: true, booking },
-      { status: 201, headers: corsHeaders }
+      { success: true, refId, checkoutUrl },
+      { status: 200, headers: corsHeaders }
     );
   } catch (err) {
-    console.error('[/api/book] Database error:', err);
+    console.error('[/api/book] Error storing pending booking:', err);
     return NextResponse.json(
-      { success: false, error: 'Failed to save booking. Please try again.' },
+      { success: false, error: 'Failed to store booking. Please try again.' },
       { status: 500, headers: corsHeaders }
     );
   }

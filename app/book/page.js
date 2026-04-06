@@ -3,7 +3,6 @@
 import { useState } from 'react';
 
 const RATE_PER_HOUR = 18;
-const SHOPIFY_CHECKOUT_URL = process.env.NEXT_PUBLIC_SHOPIFY_CHECKOUT_URL || 'https://YOUR-SHOPIFY-CHECKOUT';
 
 export default function BookPage() {
   const [name, setName] = useState('');
@@ -33,7 +32,7 @@ export default function BookPage() {
         throw new Error(data.error || 'Something went wrong. Please try again.');
       }
 
-      window.location.href = SHOPIFY_CHECKOUT_URL;
+      window.location.href = data.checkoutUrl;
     } catch (err) {
       setError(err.message);
       setLoading(false);
