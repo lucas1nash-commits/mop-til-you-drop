@@ -1,6 +1,7 @@
 import { storePendingBooking } from '@/lib/bookingStore';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import pool from '@/lib/db';
 
 // CORS headers — restrict to the configured origin, or allow all in development.
 // Set ALLOWED_ORIGIN in your Vercel environment variables to your Shopify store domain.
@@ -83,15 +84,30 @@ export async function POST(request) {
     console.log('[/api/book] Stored pending booking, refId:', refId);
 
     // Create a Shopify draft order with a custom line item — no product required.
-    // Uses the Admin API access token (shpat_...) set via SHOPIFY_ADMIN_ACCESS_TOKEN.
+    // The access token is read from SHOPIFY_ADMIN_ACCESS_TOKEN if set, otherwise it is
+    // looked up from the shopify_tokens table populated by the OAuth installation flow.
     const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    let adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || null;
+
+    if (!adminToken && shopDomain) {
+      try {
+        const tokenRow = await pool.query(
+          'SELECT access_token FROM shopify_tokens WHERE shop = $1',
+          [shopDomain]
+        );
+        if (tokenRow.rows.length > 0) {
+          adminToken = tokenRow.rows[0].access_token;
+        }
+      } catch (dbErr) {
+        console.warn('[/api/book] Could not look up access token from database:', dbErr.message);
+      }
+    }
 
     if (!shopDomain || !adminToken) {
-      const missing = [!shopDomain && 'SHOPIFY_SHOP_DOMAIN', !adminToken && 'SHOPIFY_ADMIN_ACCESS_TOKEN']
+      const missing = [!shopDomain && 'SHOPIFY_SHOP_DOMAIN', !adminToken && 'Shopify access token (set SHOPIFY_ADMIN_ACCESS_TOKEN or complete the OAuth setup at /api/shopify/install)']
         .filter(Boolean)
         .join(', ');
-      console.error('[/api/book] Missing environment variables:', missing);
+      console.error('[/api/book] Missing Shopify configuration:', missing);
       return NextResponse.json(
         { success: false, error: `Server configuration error: missing ${missing}. Please contact support.` },
         { status: 500, headers: corsHeaders }
