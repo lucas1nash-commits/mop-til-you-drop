@@ -83,7 +83,7 @@ export async function POST(request) {
     console.log('[/api/book] Stored pending booking, refId:', refId);
 
     // Create a Shopify draft order with a custom line item — no product required.
-    // Uses the Partner Dashboard app secret (shpss_...) as the Admin API access token.
+    // Uses the Admin API access token (shpat_...) set via SHOPIFY_ADMIN_ACCESS_TOKEN.
     const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
     const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 
