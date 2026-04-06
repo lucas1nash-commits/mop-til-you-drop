@@ -82,7 +82,7 @@ export async function POST(request) {
     storePendingBooking(refId, { name, email, postcode, hours, price });
     console.log('[/api/book] Stored pending booking, refId:', refId);
 
-    const baseUrl = process.env.SHOPIFY_CHECKOUT_URL || 'https://YOUR-SHOPIFY-CHECKOUT';
+    const baseUrl = process.env.SHOPIFY_CHECKOUT_URL || 'https://m95g0p-gz.myshopify.com/cart';
     const checkoutUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}note=${refId}`;
 
     return NextResponse.json(
